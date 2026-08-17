@@ -939,7 +939,7 @@
 <div class="modal-overlay" id="modalOverlay" hidden>
   <div class="modal">
     <button class="modal-close" id="modalClose" aria-label="Close">&times;</button>
-    <h2 class="modal-title">Footble #1</h2>
+    <h2 class="modal-title" id="modalTitle">Footble #1</h2>
     <div class="modal-score-label">Ball knowledge</div>
     <div class="modal-score" id="modalScore">0%</div>
     <pre class="modal-grid" id="modalGrid"></pre>
@@ -960,6 +960,9 @@ const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 const daysSinceAnchor = Math.round((startOfToday - ANCHOR_DATE) / 86400000);
 const dayIndex = ((daysSinceAnchor % GAMES.length) + GAMES.length) % GAMES.length;
 const DATA = GAMES[dayIndex];
+const puzzleNumber = daysSinceAnchor + 1;
+document.title = `Footble #${puzzleNumber}`;
+document.getElementById('modalTitle').textContent = `Footble #${puzzleNumber}`;
 
 const POS_ABBR = {
   "Goalkeeper":"GK","Left Back":"LB","Left Center Back":"LCB","Center Back":"CB","Right Center Back":"RCB",
@@ -1387,7 +1390,7 @@ document.getElementById('modalOverlay').addEventListener('click', ev => {
 });
 
 document.getElementById('shareBtn').addEventListener('click', async () => {
-  const text = `Footble #1 - ${currentScoreValue}% ball knowledge\n${buildShareGrid()}`;
+  const text = `Footble #${puzzleNumber} - ${currentScoreValue}% ball knowledge\n${buildShareGrid()}`;
   const btn = document.getElementById('shareBtn');
   const ta = document.getElementById('shareFallback');
   const hint = document.getElementById('shareHint');
