@@ -258,8 +258,9 @@
   .entries-pct-overlay{position:absolute;inset:0;pointer-events:none;}
   .entries-pct-overlay span{
     position:absolute;
-    top:89.1%;
-    transform:translate(-50%,-50%);
+    /* top is set per-column in JS (paintEntryColumn), tracking above that column's own
+       arrow tip with a fixed gap, since each arrow's height differs. */
+    transform:translate(-50%,-100%);
     font-family:'Teko Var','Teko',sans-serif;
     font-weight:600;
     font-size:13px;
@@ -1883,6 +1884,11 @@ function paintEntryColumn(col, pct){
   col.line.setAttribute('y2', tipY + headLen);
   col.head.setAttribute('points', `${col.cx-1.4},${tipY+headLen} ${col.cx+1.4},${tipY+headLen} ${col.cx},${tipY}`);
   col.textEl.textContent = Math.round(pct) + '%';
+  // Position the label above this column's own arrow tip with a fixed svg-unit gap,
+  // converted into a percentage against the entries diagram's viewBox (y: -24 to 22).
+  const gap = 5;
+  const textTopSvgY = tipY - gap;
+  col.textEl.style.top = ((textTopSvgY + 24) / 46 * 100) + '%';
 }
 
 // Builds the stats-card SVG content once (no further node creation/removal afterwards);
