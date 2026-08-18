@@ -1886,7 +1886,7 @@ function paintEntryColumn(col, pct){
   col.textEl.textContent = Math.round(pct) + '%';
   // Position the label above this column's own arrow tip with a fixed svg-unit gap,
   // converted into a percentage against the entries diagram's viewBox (y: -24 to 22).
-  const gap = 5;
+  const gap = 1;
   const textTopSvgY = tipY - gap;
   col.textEl.style.top = ((textTopSvgY + 24) / 46 * 100) + '%';
 }
