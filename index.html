@@ -135,6 +135,8 @@
     paint-order:stroke fill;
     text-shadow:-1px -1px 0 var(--win), 1px -1px 0 var(--win), -1px 1px 0 var(--win), 1px 1px 0 var(--win);
   }
+  .team-name-code{display:none;}
+  .comp-label-short{display:none;}
 
   .score-center{display:flex;align-items:center;gap:14px;justify-content:center;}
   .score-num{
@@ -282,6 +284,11 @@
     text-anchor:middle;
     dominant-baseline:central;
   }
+
+  /* Transparent grouping wrapper: on desktop this generates no box at all, so the two
+     fixed-position corner buttons inside behave exactly as if it weren't there. On mobile
+     it becomes the flex row that lays them out side by side below the shoot button. */
+  .corner-btn-row{display:contents;}
 
   /* ---------- Stats button + stats popover ---------- */
   .stats-wrap{
@@ -640,9 +647,77 @@
   .legend p{margin:0;max-width:520px;line-height:1.5;}
 
   @media (max-width:640px){
-    .score-row{grid-template-columns:1fr;text-align:center;}
-    .team-block.home,.team-block.away{align-items:center;text-align:center;}
-    .score-center{order:-1;}
+    body{flex-direction:column;align-items:center;justify-content:flex-start;}
+
+    /* Team codes instead of full names: short enough to keep sitting either side of the
+       score in the original 3-column grid, no need to stack any more. */
+    .team-name-full{display:none;}
+    .team-name-code{display:inline;}
+
+    /* Top label: tournament name only, nothing else. */
+    #metaDate, #metaStadium, .comp-row .dot{display:none;}
+    .comp-label-full{display:none;}
+    .comp-label-short{display:inline;}
+
+    /* Pitch is rotated to portrait (goalkeeper at the bottom) natively in SVG space via
+       #pitchRotator + a swapped viewBox, set in JS - see setPitchOrientation(). That keeps
+       the SVG's own intrinsic aspect ratio portrait-shaped, so the existing
+       width:100%;height:auto sizing fills the card correctly with no CSS transform tricks. */
+    /* Cancel the pitch's own rotation on jersey numbers so they stay upright. */
+    .pitch-rotated .player-node text{
+      transform-box:fill-box;
+      transform-origin:center;
+      transform:rotate(90deg);
+    }
+
+    /* Corner buttons: no longer fixed to the viewport corners, they flow into the page as a
+       row directly below the shoot button instead. */
+    .corner-btn-row{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      width:100%;
+      max-width:980px;
+      margin:8px auto 0;
+      padding:0 24px;
+      box-sizing:border-box;
+    }
+    .stats-wrap, .help-wrap{
+      position:static;
+      top:auto; left:auto; right:auto;
+      pointer-events:auto;
+    }
+
+    /* The popovers become a centered overlay above a dimming scrim instead of a small
+       card anchored to their corner button. */
+    .stats-wrap::after, .help-wrap::after{
+      content:"";
+      position:fixed;
+      inset:0;
+      z-index:100;
+      background:rgba(0,0,0,0);
+      opacity:0;
+      pointer-events:none;
+      transition:opacity .18s ease, background-color .18s ease;
+    }
+    .stats-wrap:hover::after, .stats-wrap:focus-within::after,
+    .help-wrap:hover::after, .help-wrap:focus-within::after{
+      opacity:1;
+      background:rgba(0,0,0,0.6);
+    }
+    .stats-card, .explainer-card{
+      position:fixed;
+      top:50%; left:50%; right:auto;
+      width:calc(100vw - 48px);
+      max-width:400px;
+      max-height:80vh;
+      z-index:110;
+      transform:translate(-50%,-50%) scale(0.96);
+    }
+    .stats-wrap:hover .stats-card, .stats-wrap:focus-within .stats-card,
+    .help-wrap:hover .explainer-card, .help-wrap:focus-within .explainer-card{
+      transform:translate(-50%,-50%) scale(1);
+    }
   }
 </style>
 </head>
@@ -651,13 +726,13 @@
 
   <div class="scoreboard">
     <div class="comp-row" id="compRow">
-      <span id="compLabel">FIFA World Cup 2022</span><span class="dot"></span>
+      <span id="compLabel"><span class="comp-label-full" id="compLabelFull">FIFA World Cup 2022</span><span class="comp-label-short" id="compLabelShort">FIFA World Cup 2022</span></span><span class="dot"></span>
       <span id="metaDate"></span><span class="dot"></span>
       <span id="metaStadium"></span>
     </div>
     <div class="score-row">
       <div class="team-block home">
-        <div class="team-name" id="homeName">Argentina</div>
+        <div class="team-name"><span class="team-name-full" id="homeName">Argentina</span><span class="team-name-code" id="homeNameCode">ARG</span></div>
       </div>
       <div class="score-center">
         <span class="score-num" id="homeScore">3</span>
@@ -668,7 +743,7 @@
         <span class="score-num" id="awayScore">3</span>
       </div>
       <div class="team-block away">
-        <div class="team-name" id="awayName">France</div>
+        <div class="team-name"><span class="team-name-full" id="awayName">France</span><span class="team-name-code" id="awayNameCode">FRA</span></div>
       </div>
     </div>
   </div>
@@ -688,41 +763,43 @@
             </filter>
           </defs>
 
-          <g clip-path="url(#pitchClip)">
-            <!-- turf stripes -->
-            <rect x="-4" y="-4" width="128" height="88" class="turf-base"/>
-            <g id="stripes"></g>
+          <g id="pitchRotator">
+            <g clip-path="url(#pitchClip)">
+              <!-- turf stripes -->
+              <rect x="-4" y="-4" width="128" height="88" class="turf-base"/>
+              <g id="stripes"></g>
 
-            <!-- pitch lines -->
-            <g class="pitch-lines" fill="none" stroke-width="0.55">
-              <rect x="0" y="0" width="120" height="80"/>
-              <line x1="60" y1="0" x2="60" y2="80"/>
-              <circle cx="60" cy="40" r="9.15"/>
-              <circle cx="60" cy="40" r="0.35" class="spot" stroke="none"/>
-              <!-- left box (outer edge omitted, shared with the pitch boundary) -->
-              <path d="M0,18 H18 V62 H0"/>
-              <path d="M0,30 H6 V50 H0"/>
-              <circle cx="12" cy="40" r="0.35" class="spot" stroke="none"/>
-              <path d="M18,33.09 A9.15,9.15 0 0 1 18,46.91"/>
-              <!-- right box (outer edge omitted, shared with the pitch boundary) -->
-              <path d="M120,18 H102 V62 H120"/>
-              <path d="M120,30 H114 V50 H120"/>
-              <circle cx="108" cy="40" r="0.35" class="spot" stroke="none"/>
-              <path d="M102,33.09 A9.15,9.15 0 0 0 102,46.91"/>
-              <!-- corners -->
-              <path d="M1,0 A1,1 0 0 1 0,1"/>
-              <path d="M119,0 A1,1 0 0 0 120,1"/>
-              <path d="M0,79 A1,1 0 0 1 1,80"/>
-              <path d="M120,79 A1,1 0 0 0 119,80"/>
-              <!-- goals (edge shared with the pitch boundary omitted) -->
-              <path d="M0,35.5 H-2.2 V44.5 H0" stroke-width="0.5"/>
-              <path d="M120,35.5 H122.2 V44.5 H120" stroke-width="0.5"/>
+              <!-- pitch lines -->
+              <g class="pitch-lines" fill="none" stroke-width="0.55">
+                <rect x="0" y="0" width="120" height="80"/>
+                <line x1="60" y1="0" x2="60" y2="80"/>
+                <circle cx="60" cy="40" r="9.15"/>
+                <circle cx="60" cy="40" r="0.35" class="spot" stroke="none"/>
+                <!-- left box (outer edge omitted, shared with the pitch boundary) -->
+                <path d="M0,18 H18 V62 H0"/>
+                <path d="M0,30 H6 V50 H0"/>
+                <circle cx="12" cy="40" r="0.35" class="spot" stroke="none"/>
+                <path d="M18,33.09 A9.15,9.15 0 0 1 18,46.91"/>
+                <!-- right box (outer edge omitted, shared with the pitch boundary) -->
+                <path d="M120,18 H102 V62 H120"/>
+                <path d="M120,30 H114 V50 H120"/>
+                <circle cx="108" cy="40" r="0.35" class="spot" stroke="none"/>
+                <path d="M102,33.09 A9.15,9.15 0 0 0 102,46.91"/>
+                <!-- corners -->
+                <path d="M1,0 A1,1 0 0 1 0,1"/>
+                <path d="M119,0 A1,1 0 0 0 120,1"/>
+                <path d="M0,79 A1,1 0 0 1 1,80"/>
+                <path d="M120,79 A1,1 0 0 0 119,80"/>
+                <!-- goals (edge shared with the pitch boundary omitted) -->
+                <path d="M0,35.5 H-2.2 V44.5 H0" stroke-width="0.5"/>
+                <path d="M120,35.5 H122.2 V44.5 H120" stroke-width="0.5"/>
+              </g>
             </g>
-          </g>
 
-          <g id="edgesLayer"></g>
-          <g id="nodesLayer"></g>
-          <g id="opponentLayer"></g>
+            <g id="edgesLayer"></g>
+            <g id="nodesLayer"></g>
+            <g id="opponentLayer"></g>
+          </g>
         </svg>
       </div>
       <div class="tooltip" id="tooltip"></div>
@@ -750,6 +827,7 @@
 
 </div>
 
+<div class="corner-btn-row">
 <div class="stats-wrap">
   <button class="stats-btn" aria-label="Match stats"><img class="stats-icon" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACMAAAAjCAYAAAAe2bNZAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAOdEVYdFNvZnR3YXJlAEZpZ21hnrGWYwAAAbpJREFUeAHtV+1xgzAMFZmAEegEZYN6k7JJWKETJJ3E6QSkE9AN6AaqfLg5IWyQ+Uj+5N3pMCDZz5ItywBP7AREzEkK2AAZJIIGNvR4I3HPkiRnv39Jrl4+syy7wh5wJEgspqEhqWAr+DDYiQFbJjGcVofSdRAYpCOpvafygI37fg7YtYsJRYjUIQITfdSrCQWIuHYJCxDpSz0h8DFe7944Ias1rIRrixl9+y8zeqXo14CCTMPXiEL/BoVurfaOYN+CAolkXJroYt45CP2KtS+gwwuTSVBGdhn6g30yUWUcJjcDOwD7PDQfKu5C2BGMTKdRUq0XYaOeAA63+S3nHJhCAY/BmAz0x//dQYv6J/hDbDtVyl4YpuCakVubF0OLziIFERMZb0Tmi7UN7IN31v6Oaokc0GlClRomsZPKOWXLlGvYkAypHJl6AwoD7p1Z9qg/tQvRbwUaCO+0uH09c0oxznFcnRWwANhXAuv6wnANfEywz8UaWTWpGCH3fsLAqe4JGE+i24yIIHTGOFqcvzdZTCnCFaQqHJakGlhMqIuW3LXdVq9IXiF+13aZ/EKH4AXuDR/K7cLwhMAfyMNCaLtMYJIAAAAASUVORK5CYII=" alt=""></button>
   <div class="stats-card">
@@ -935,6 +1013,7 @@
     <p class="explainer-note">Lines connect players who passed to each other during the match. The thicker and brighter the line, the more passes were exchanged between that pair.</p>
   </div>
 </div>
+</div>
 
 <div class="modal-overlay" id="modalOverlay" hidden>
   <div class="modal">
@@ -975,8 +1054,144 @@ const POS_ABBR = {
   "Left Center Forward":"LCF","Right Center Forward":"RCF","Striker":"ST","Secondary Striker":"SS"
 };
 
+const TEAM_CODES = {
+  "AC Milan": "MIL",
+  "AFC Bournemouth": "BOU",
+  "AS Monaco": "MCO",
+  "AS Roma": "ROM",
+  "Albania": "ALB",
+  "Argentina": "ARG",
+  "Arsenal": "ARS",
+  "Aston Villa": "AVL",
+  "Atalanta": "ATA",
+  "Athletic Club": "ATH",
+  "Atl\u00e9tico Madrid": "ATM",
+  "Australia": "AUS",
+  "Austria": "AUT",
+  "Barcelona": "BAR",
+  "Bayer Leverkusen": "LEV",
+  "Bayern Munich": "FCB",
+  "Belgium": "BEL",
+  "Bolivia": "BOL",
+  "Bologna": "BOL",
+  "Brazil": "BRA",
+  "Burkina Faso": "BFA",
+  "Canada": "CAN",
+  "Cape Verde Islands": "CPV",
+  "Celta Vigo": "CEL",
+  "Chelsea": "CHE",
+  "Chile": "CHL",
+  "Colombia": "COL",
+  "Costa Rica": "CRI",
+  "Croatia": "CRO",
+  "Crystal Palace": "CRY",
+  "Czech Republic": "CZE",
+  "C\u00f4te d'Ivoire": "CIV",
+  "Denmark": "DNK",
+  "Deportivo Alav\u00e9s": "ALA",
+  "Ecuador": "ECU",
+  "Egypt": "EGY",
+  "Eintracht Frankfurt": "SGE",
+  "Elche": "ELC",
+  "England": "ENG",
+  "Espanyol": "ESP",
+  "Everton": "EVE",
+  "FC Heidenheim": "HDH",
+  "FC K\u00f6ln": "KOE",
+  "FSV Mainz 05": "M05",
+  "Finland": "FIN",
+  "Fiorentina": "FIO",
+  "France": "FRA",
+  "Freiburg": "SCF",
+  "Gambia": "GMB",
+  "Genoa": "GEN",
+  "Georgia": "GEO",
+  "Germany": "GER",
+  "Getafe": "GET",
+  "Girona": "GIR",
+  "Goa": "GOA",
+  "Guinea-Bissau": "GNB",
+  "Hellas Verona": "VER",
+  "Hoffenheim": "TSG",
+  "Hungary": "HUN",
+  "Inter Milan": "INT",
+  "Iran": "IRN",
+  "Italy": "ITA",
+  "Japan": "JPN",
+  "Juventus": "JUV",
+  "Lazio": "LAZ",
+  "Leicester City": "LEI",
+  "Levante UD": "LEV",
+  "Lille": "LIL",
+  "Liverpool": "LIV",
+  "Lorient": "FCL",
+  "Lyon": "OL",
+  "Manchester City": "MCI",
+  "Manchester United": "MUN",
+  "Mauritania": "MRT",
+  "Metz": "MET",
+  "Mexico": "MEX",
+  "Nantes": "NAN",
+  "Napoli": "NAP",
+  "Netherlands": "NLD",
+  "Newcastle United": "NEW",
+  "Nigeria": "NGA",
+  "North Macedonia": "MKD",
+  "Norwich City": "NOR",
+  "OGC Nice": "NIC",
+  "Olympique de Marseille": "OM",
+  "Osasuna": "OSA",
+  "Panama": "PAN",
+  "Paraguay": "PRY",
+  "Paris Saint-Germain": "PSG",
+  "Peru": "PER",
+  "Poland": "POL",
+  "Portugal": "POR",
+  "Rayo Vallecano": "RAY",
+  "Real Betis": "BET",
+  "Real Madrid": "RMA",
+  "Real Sociedad": "RSO",
+  "Rennes": "REN",
+  "Romania": "ROM",
+  "Russia": "RUS",
+  "Saudi Arabia": "SAU",
+  "Scotland": "SCO",
+  "Senegal": "SEN",
+  "Sevilla": "SEV",
+  "Slovakia": "SVK",
+  "Southampton": "SOU",
+  "Spain": "ESP",
+  "Stade Brestois": "BRE",
+  "Stoke City": "STO",
+  "Sunderland": "SUN",
+  "Swansea City": "SWA",
+  "Sweden": "SWE",
+  "Torino": "TOR",
+  "Tottenham Hotspur": "TOT",
+  "Toulouse": "TFC",
+  "Tunisia": "TUN",
+  "Turkey": "TUR",
+  "Udinese": "UDI",
+  "Ukraine": "UKR",
+  "Union Berlin": "FCU",
+  "United States": "USA",
+  "Uruguay": "URY",
+  "Valencia": "VAL",
+  "Venezuela": "VEN",
+  "VfB Stuttgart": "VFB",
+  "Villarreal": "VIL",
+  "Wales": "WAL",
+  "Watford": "WAT",
+  "Werder Bremen": "SVW",
+  "West Bromwich Albion": "WBA",
+  "West Ham United": "WHU",
+  "Wolfsburg": "WOB"
+};
+function teamCode(name){ return TEAM_CODES[name] || name; }
+
 const PITCH_LEN = 120, PITCH_WID = 80;
-const NODE_R = 2.9;
+const mobileMql = window.matchMedia('(max-width:640px)');
+function nodeRadius(){ return mobileMql.matches ? 3.4 : 2.9; }
 const SVGNS = "http://www.w3.org/2000/svg";
 
 const svg = document.getElementById('pitchSvg');
@@ -986,6 +1201,19 @@ const opponentLayer = document.getElementById('opponentLayer');
 const stripesG = document.getElementById('stripes');
 const tooltip = document.getElementById('tooltip');
 const pitchCard = document.getElementById('pitchCard');
+const pitchRotator = document.getElementById('pitchRotator');
+
+// On narrow screens, reorient the pitch to portrait with the goalkeeper at the bottom by
+// rotating natively in SVG space (not CSS) and swapping the viewBox to match, so the
+// existing width:100%;height:auto sizing on .pitch-frame svg just works unmodified.
+function setPitchOrientation(){
+  const mobile = mobileMql.matches;
+  svg.setAttribute('viewBox', mobile ? '16 -24 88 128' : '-4 -4 128 88');
+  pitchRotator.setAttribute('transform', mobile ? 'rotate(-90 60 40)' : '');
+  svg.classList.toggle('pitch-rotated', mobile);
+}
+setPitchOrientation();
+mobileMql.addEventListener('change', setPitchOrientation);
 
 // build turf stripes
 (function(){
@@ -1070,7 +1298,7 @@ function buildNode(p, tid, pos, opts){
   if(!faded){
     const shadow = document.createElementNS(SVGNS,'circle');
     shadow.setAttribute('class','node-shadow');
-    shadow.setAttribute('r', NODE_R);
+    shadow.setAttribute('r', nodeRadius());
     shadow.setAttribute('cy', 0.25);
     shadow.setAttribute('fill', '#000');
     g.appendChild(shadow);
@@ -1078,7 +1306,7 @@ function buildNode(p, tid, pos, opts){
 
   const disc = document.createElementNS(SVGNS,'circle');
   disc.setAttribute('class','disc');
-  disc.setAttribute('r', NODE_R);
+  disc.setAttribute('r', nodeRadius());
   disc.setAttribute('fill', opts.fill || (faded ? colorFor(tid) : gradFor(tid)));
   disc.setAttribute('stroke', opts.stroke || (faded ? 'rgba(154,154,154,0.9)' : 'rgba(10,10,10,0.9)'));
   disc.setAttribute('stroke-width', '0.28');
@@ -1109,9 +1337,12 @@ const SHOT_LOOSE_R = 14;
 const SHOT_TIGHT_R = 6;
 
 function svgPoint(ev){
+  // Use pitchRotator's own CTM, not the root svg's: on mobile pitchRotator carries an extra
+  // rotate() on top of the viewBox mapping, and winnerPos coordinates are in its local
+  // (pre-rotation, pitch) space, so this is the one that correctly un-rotates pointer input.
   const pt = svg.createSVGPoint();
   pt.x = ev.clientX; pt.y = ev.clientY;
-  return pt.matrixTransform(svg.getScreenCTM().inverse());
+  return pt.matrixTransform(pitchRotator.getScreenCTM().inverse());
 }
 
 function clampPos(x, y){
@@ -1558,9 +1789,12 @@ document.addEventListener('pointerleave', endHold);
 
 // ---- populate header ----
 const m = DATA.match;
-document.getElementById('compLabel').textContent = m.stage ? `${m.competition} - ${m.stage}` : m.competition;
+document.getElementById('compLabelFull').textContent = m.stage ? `${m.competition} - ${m.stage}` : m.competition;
+document.getElementById('compLabelShort').textContent = m.competition;
 document.getElementById('homeName').textContent = m.home_team;
 document.getElementById('awayName').textContent = m.away_team;
+document.getElementById('homeNameCode').textContent = teamCode(m.home_team);
+document.getElementById('awayNameCode').textContent = teamCode(m.away_team);
 document.getElementById('homeScore').textContent = m.home_score;
 document.getElementById('awayScore').textContent = m.away_score;
 document.getElementById('aetTag').hidden = !m.aet;
