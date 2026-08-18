@@ -251,7 +251,21 @@
     text-transform:uppercase;
     color:var(--text-0);
   }
-  .explainer-frame{border-radius:var(--radius-md);overflow:hidden;box-shadow:0 0 0 1px rgba(0,0,0,0.4);}
+  .explainer-frame{position:relative;border-radius:var(--radius-md);overflow:hidden;box-shadow:0 0 0 1px rgba(0,0,0,0.4);}
+  /* Percentage labels for the final-third-entries chart, as HTML text positioned over the
+     svg by percentage rather than embedded SVG <text> - the SVG text version wasn't
+     rendering reliably on some devices and HTML text has been reliable everywhere else. */
+  .entries-pct-overlay{position:absolute;inset:0;pointer-events:none;}
+  .entries-pct-overlay span{
+    position:absolute;
+    top:89.1%;
+    transform:translate(-50%,-50%);
+    font-family:'Teko Var','Teko',sans-serif;
+    font-weight:600;
+    font-size:13px;
+    color:#ffffff;
+    text-shadow:0 1px 2px rgba(0,0,0,0.6);
+  }
   .explainer-svg{width:100%;height:auto;display:block;}
   .hitzone-outer{fill:#ff9f1c;fill-opacity:0.55;stroke:none;}
   .hitzone-inner{fill:#39ff6a;fill-opacity:0.65;stroke:none;}
@@ -915,9 +929,13 @@
 
           <g id="entryBands"></g>
           <g id="entryArrows"></g>
-          <g id="entryTexts"></g>
         </g>
       </svg>
+      <div class="entries-pct-overlay">
+        <span id="entryPctLeftText" style="left:19.7%"></span>
+        <span id="entryPctCenterText" style="left:50%"></span>
+        <span id="entryPctRightText" style="left:80.3%"></span>
+      </div>
     </div>
     <div class="entries-caption-row">
       <span>Left</span><span>Center</span><span>Right</span>
@@ -1864,7 +1882,7 @@ function paintEntryColumn(col, pct){
   col.line.setAttribute('y1', baseY);
   col.line.setAttribute('y2', tipY + headLen);
   col.head.setAttribute('points', `${col.cx-1.4},${tipY+headLen} ${col.cx+1.4},${tipY+headLen} ${col.cx},${tipY}`);
-  col.text.textContent = Math.round(pct) + '%';
+  col.textEl.textContent = Math.round(pct) + '%';
 }
 
 // Builds the stats-card SVG content once (no further node creation/removal afterwards);
@@ -1896,12 +1914,18 @@ function buildStatsCard(){
   const entries = winnerTeam.final_third_entries || {left_pct:0, center_pct:0, right_pct:0};
   const bandsG = document.getElementById('entryBands');
   const arrowsG = document.getElementById('entryArrows');
-  const textsG = document.getElementById('entryTexts');
+  // Percentage labels are HTML spans overlaid on the svg (see .entries-pct-overlay), not
+  // embedded SVG <text> - the SVG text version wasn't rendering reliably on some devices.
+  const textEls = [
+    document.getElementById('entryPctLeftText'),
+    document.getElementById('entryPctCenterText'),
+    document.getElementById('entryPctRightText'),
+  ];
   statsColumns = [
     {x0:20, x1:46.667, target: entries.right_pct || 0},
     {x0:46.667, x1:73.333, target: entries.center_pct || 0},
     {x0:73.333, x1:100, target: entries.left_pct || 0},
-  ].map(col => {
+  ].map((col, i) => {
     const cx = (col.x0 + col.x1) / 2;
     const band = document.createElementNS(SVGNS, 'rect');
     band.setAttribute('x', col.x0);
@@ -1922,18 +1946,7 @@ function buildStatsCard(){
     head.setAttribute('fill', '#ffffff');
     arrowsG.appendChild(head);
 
-    const text = document.createElementNS(SVGNS, 'text');
-    text.setAttribute('x', cx);
-    text.setAttribute('y', 17);
-    text.setAttribute('text-anchor', 'middle');
-    text.setAttribute('dominant-baseline', 'central');
-    text.setAttribute('font-family', "'Teko Var','Teko',sans-serif");
-    text.setAttribute('font-weight', '600');
-    text.setAttribute('font-size', '6.2');
-    text.setAttribute('fill', '#ffffff');
-    textsG.appendChild(text);
-
-    return {cx, band, line, head, text, target: col.target};
+    return {cx, band, line, head, textEl: textEls[i], target: col.target};
   });
   statsColumns.forEach(col => paintEntryColumn(col, 100/3));
 
